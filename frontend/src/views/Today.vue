@@ -7,6 +7,7 @@ import { useUiStore } from '../stores/ui'
 import {
   addDays,
   completionOf,
+  defaultFocusMinutes,
   formatDuration,
   humanDate,
   streakOf,
@@ -72,9 +73,13 @@ function onReview(patch: Partial<Review>) {
 }
 
 function startFocus(task: DayTask) {
-  timer.bindTask(task.id, task.title)
-  if (timer.state.mode !== 'pomo') timer.setMode('pomo')
   timer.panelOpen = true
+  if (timer.state.taskId === task.id && timer.state.running) return
+  // Settle the previous task before rebinding so its focus time keeps the right owner.
+  timer.setMode('pomo')
+  timer.bindTask(task.id, task.title)
+  const planned = data.plan.find((item) => item.id === task.id)
+  timer.setDuration(planned?.focusMin ?? defaultFocusMinutes(task.startTime, task.endTime))
   timer.start()
   toast.push(`开始专注：${task.title}`, 'ok')
 }
@@ -166,7 +171,7 @@ function startFocus(task: DayTask) {
             <span v-if="task.note" class="task-note">{{ task.note }}</span>
           </div>
 
-          <el-button class="task-play" circle aria-label="开始专注" title="开始专注" @click="startFocus(task)"><Icon name="play" :size="15" /></el-button>
+          <el-button class="task-play" type="primary" plain circle aria-label="开始专注" title="开始专注" @click="startFocus(task)"><Icon name="play" :size="14" /></el-button>
         </div>
 
         <el-empty v-if="!log.tasks.length" description="计划表还是空的，去「计划」页添加第一个时间段" />

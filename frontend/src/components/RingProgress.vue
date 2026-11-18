@@ -10,8 +10,8 @@ const text = computed(() => `${Math.round(props.value)}%`)
 </script>
 
 <template>
-  <div class="ring" :style="{ width: size + 'px', height: size + 'px' }">
-    <svg :width="size" :height="size">
+  <div class="ring" :style="{ width: size + 'px', height: size + 'px' }" role="img" :aria-label="`任务完成率 ${text}`">
+    <svg :width="size" :height="size" :viewBox="`0 0 ${size} ${size}`" style="width: 100%; height: 100%">
       <circle
         :cx="size / 2"
         :cy="size / 2"

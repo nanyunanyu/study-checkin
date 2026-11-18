@@ -52,6 +52,20 @@ CREATE TABLE IF NOT EXISTS plan_items (
   PRIMARY KEY(owner_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS plan_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plan_categories_owner_name
+  ON plan_categories(owner_id, name COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  name TEXT PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS day_logs (
   owner_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -111,9 +125,62 @@ def init_db() -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(plan_items)").fetchall()}
         if "focus_min" not in columns:
             conn.execute("ALTER TABLE plan_items ADD COLUMN focus_min INTEGER")
+        if not conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name='plan_categories_v1'"
+        ).fetchone():
+            migrate_legacy_categories(conn)
+            conn.execute(
+                "INSERT INTO schema_migrations(name, applied_at) VALUES (?,?)",
+                ("plan_categories_v1", now_iso()),
+            )
         conn.commit()
     finally:
         conn.close()
+
+
+def migrate_legacy_categories(conn: sqlite3.Connection) -> None:
+    """Keep custom labels from plans and historical snapshots available as account categories."""
+    names_by_owner: dict[int, set[str]] = {}
+
+    for row in conn.execute("SELECT owner_id, subject FROM plan_items").fetchall():
+        owner_id = int(row["owner_id"])
+        name = (row["subject"] or "").strip()
+        if name:
+            names_by_owner.setdefault(owner_id, set()).add(name)
+
+    for row in conn.execute("SELECT owner_id, tasks FROM day_logs").fetchall():
+        try:
+            tasks = json.loads(row["tasks"] or "[]")
+        except (TypeError, ValueError):
+            tasks = []
+        if not isinstance(tasks, list):
+            continue
+        owner_id = int(row["owner_id"])
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            name = str(task.get("subject") or "").strip()
+            if name:
+                names_by_owner.setdefault(owner_id, set()).add(name)
+
+    for owner_id, names in names_by_owner.items():
+        ensure_plan_categories(conn, owner_id, names)
+
+
+def ensure_plan_categories(conn: sqlite3.Connection, owner_id: int, names) -> None:
+    from .seed import SUBJECTS
+
+    preset_names = {name.casefold() for name in SUBJECTS}
+    custom_names = {
+        str(name).strip()
+        for name in names
+        if str(name).strip() and str(name).strip().casefold() not in preset_names
+    }
+    now = now_iso()
+    conn.executemany(
+        "INSERT OR IGNORE INTO plan_categories(owner_id, name, created_at) VALUES (?,?,?)",
+        [(owner_id, name, now) for name in sorted(custom_names, key=str.casefold)],
+    )
 
 
 def row_to_dict(row) -> dict:

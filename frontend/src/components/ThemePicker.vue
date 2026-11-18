@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useThemeStore } from '../stores/theme'
 import Icon from './Icon.vue'
 
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+
 const theme = useThemeStore()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -37,10 +39,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="theme-picker">
+  <div ref="root" class="theme-picker" :class="{ compact }">
     <button
       class="theme-trigger"
       type="button"
+      :aria-label="`界面配色：${selected.label}`"
+      :title="`当前配色：${selected.label}`"
       :aria-expanded="open"
       aria-haspopup="listbox"
       @click="open = !open"
@@ -48,7 +52,7 @@ onBeforeUnmount(() => {
       <span class="theme-preview-swatch" :style="{ background: selected.swatch }" />
       <span class="theme-trigger-copy">
         <span class="theme-trigger-label">{{ selected.label }}</span>
-        <span class="theme-trigger-hint">当前配色 · 已实时应用</span>
+        <span v-if="!compact" class="theme-trigger-hint">当前配色 · 已实时应用</span>
       </span>
       <Icon :name="open ? 'up' : 'down'" :size="15" />
     </button>
@@ -70,7 +74,7 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div class="theme-live-preview" aria-live="polite">
+    <div v-if="!compact" class="theme-live-preview" aria-live="polite">
       <div class="preview-window">
         <span class="preview-dot" />
         <span class="preview-line" />
@@ -85,6 +89,29 @@ onBeforeUnmount(() => {
 .theme-picker {
   position: relative;
   width: min(100%, 390px);
+}
+
+.theme-picker.compact {
+  width: auto;
+}
+
+.theme-picker.compact .theme-trigger {
+  width: auto;
+  min-height: 38px;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 10px;
+}
+
+.theme-picker.compact .theme-preview-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.theme-picker.compact .theme-trigger-label {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .theme-trigger {
@@ -150,6 +177,12 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow);
+}
+
+.theme-picker.compact .theme-options {
+  right: 0;
+  left: auto;
+  width: 205px;
 }
 
 .theme-option {
@@ -223,11 +256,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 560px) {
-  .theme-picker {
+  .theme-picker:not(.compact) {
     width: 100%;
   }
 
-  .theme-options {
+  .theme-picker:not(.compact) .theme-options {
     position: static;
     margin-top: 7px;
   }

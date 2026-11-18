@@ -17,13 +17,29 @@ const restoreOpen = ref(false)
 const restoring = ref(false)
 const expandedIds = ref(new Set<string>())
 const drafts = ref<PlanItem[]>([])
+const presets = ref<string[]>([])
+const customCategories = ref<Array<{ id: number; name: string }>>([])
+const categoriesOpen = ref(false)
+const newCategoryName = ref('')
+const categoryBusy = ref(false)
+const editingCategoryId = ref<number | null>(null)
+const editingCategoryName = ref('')
+
+async function loadCategories() {
+  const result = await api.categories()
+  presets.value = result.presets
+  customCategories.value = result.custom
+}
 
 function clonePlan() {
   items.value = data.plan.map((item, index) => ({ ...item, focusMin: item.focusMin ?? null, sortOrder: index }))
   dirty.value = false
 }
 
-onMounted(clonePlan)
+onMounted(() => {
+  clonePlan()
+  void loadCategories().catch((err: any) => toast.push(err?.message || '分类加载失败', 'err'))
+})
 
 function mark() {
   dirty.value = true
@@ -41,6 +57,70 @@ function blankItem(): PlanItem {
     note: '',
     active: true
   }
+}
+
+async function createCategory() {
+  const name = newCategoryName.value.trim()
+  if (!name || categoryBusy.value) return
+  categoryBusy.value = true
+  try {
+    const created = await api.createCategory(name)
+    customCategories.value.push(created)
+    newCategoryName.value = ''
+    toast.push(`已新增分类「${created.name}」`, 'ok')
+  } catch (err: any) {
+    toast.push(err?.message || '新增分类失败', 'err')
+  } finally {
+    categoryBusy.value = false
+  }
+}
+
+function beginRename(category: { id: number; name: string }) {
+  editingCategoryId.value = category.id
+  editingCategoryName.value = category.name
+}
+
+async function saveCategoryName(category: { id: number; name: string }) {
+  const name = editingCategoryName.value.trim()
+  if (!name || categoryBusy.value) return
+  categoryBusy.value = true
+  try {
+    const updated = await api.renameCategory(category.id, name)
+    const rename = (item: PlanItem) => sameCategory(item.subject, category.name) ? { ...item, subject: updated.name } : item
+    items.value = items.value.map(rename)
+    drafts.value = drafts.value.map(rename)
+    data.plan = data.plan.map(rename)
+    if (data.reconcileToday()) data.touch(todayStr())
+    customCategories.value = customCategories.value.map((item) => item.id === updated.id ? updated : item)
+    editingCategoryId.value = null
+    toast.push('分类已重命名，已同步到当前计划', 'ok')
+  } catch (err: any) {
+    toast.push(err?.message || '重命名失败', 'err')
+  } finally {
+    categoryBusy.value = false
+  }
+}
+
+async function deleteCategory(category: { id: number; name: string }) {
+  if (categoryBusy.value) return
+  categoryBusy.value = true
+  try {
+    await api.deleteCategory(category.id)
+    customCategories.value = customCategories.value.filter((item) => item.id !== category.id)
+    toast.push(`已删除分类「${category.name}」`, 'ok')
+  } catch (err: any) {
+    toast.push(err?.message || '删除分类失败', 'err')
+  } finally {
+    categoryBusy.value = false
+  }
+}
+
+function sameCategory(first: string, second: string) {
+  return first.trim().toLowerCase() === second.trim().toLowerCase()
+}
+
+function categoryInPlan(name: string) {
+  return [...data.plan, ...items.value].some((item) => sameCategory(item.subject, name))
 }
 
 function openAdd() {
@@ -145,12 +225,15 @@ async function restoreDefault() {
         <div class="card-title">计划表</div>
         <span class="hint">{{ items.length }} 个时间段</span>
         <div class="spacer" />
-        <span v-if="dirty" class="tag">未保存</span>
-        <el-button size="small" @click="restoreOpen = true">恢复默认</el-button>
-        <el-button size="small" @click="openAdd"><Icon name="plus" :size="14" />新增计划表</el-button>
-        <el-button size="small" type="primary" :loading="saving" :disabled="!dirty" @click="save">
-          {{ saving ? '保存中…' : '保存' }}
-        </el-button>
+        <div class="plan-toolbar">
+          <span v-if="dirty" class="tag">未保存</span>
+          <el-button size="small" @click="categoriesOpen = true">管理分类</el-button>
+          <el-button size="small" @click="restoreOpen = true">恢复默认</el-button>
+          <el-button size="small" @click="openAdd"><Icon name="plus" :size="14" />新增计划表</el-button>
+          <el-button size="small" type="primary" :loading="saving" :disabled="!dirty" @click="save">
+            {{ saving ? '保存中…' : '保存' }}
+          </el-button>
+        </div>
       </div>
 
       <div v-if="!items.length" class="empty">还没有任何时间段，点「新增计划表」开始</div>
@@ -163,7 +246,11 @@ async function restoreDefault() {
             <el-time-picker v-model="item.endTime" class="time-picker" format="HH:mm" value-format="HH:mm" placeholder="结束" :clearable="false" @change="mark" />
           </div>
           <el-input v-model="item.title" placeholder="任务内容" @input="mark" />
-          <el-input v-model="item.subject" placeholder="自定义类别" aria-label="计划类别" @input="mark" />
+          <el-select v-model="item.subject" class="plan-category-select" aria-label="计划类别" @change="mark">
+            <el-option-group v-for="group in [{ label: '预设分类', options: presets }, { label: '自定义分类', options: customCategories.map((category) => category.name) }]" :key="group.label" :label="group.label">
+              <el-option v-for="category in group.options" :key="category" :label="category" :value="category" />
+            </el-option-group>
+          </el-select>
           <div class="plan-actions">
             <el-button circle text :aria-label="expandedIds.has(item.id) ? '收起详情' : '展开详情'" :aria-expanded="expandedIds.has(item.id)" title="详情" @click="toggleExpanded(item.id)">
               <Icon :name="expandedIds.has(item.id) ? 'up' : 'down'" :size="14" />
@@ -217,8 +304,12 @@ async function restoreDefault() {
                 <el-input v-model="item.title" placeholder="例如：完成英语阅读练习" />
               </div>
               <div class="field">
-                <label>自定义类别</label>
-                <el-input v-model="item.subject" placeholder="例如：英语、复习" />
+                <label>计划类别</label>
+                <el-select v-model="item.subject" class="plan-category-select">
+                  <el-option-group v-for="group in [{ label: '预设分类', options: presets }, { label: '自定义分类', options: customCategories.map((category) => category.name) }]" :key="group.label" :label="group.label">
+                    <el-option v-for="category in group.options" :key="category" :label="category" :value="category" />
+                  </el-option-group>
+                </el-select>
               </div>
               <div class="field batch-note-field">
                 <label>备注（可选）</label>
@@ -235,6 +326,40 @@ async function restoreDefault() {
             <el-button type="primary" @click="addDrafts">加入计划表</el-button>
           </div>
         </template>
+    </el-dialog>
+
+    <el-dialog v-model="categoriesOpen" title="管理计划分类" width="480px" class="category-dialog" :close-on-click-modal="false">
+      <p class="hint category-help">自定义分类仅当前账号可见。重命名会同步当前计划，历史记录保留原名称。</p>
+      <div class="category-create-row">
+        <el-input v-model="newCategoryName" placeholder="输入新的自定义分类" maxlength="40" @keyup.enter="createCategory" />
+        <el-button type="primary" :loading="categoryBusy" :disabled="!newCategoryName.trim()" @click="createCategory"><Icon name="plus" :size="14" />新增</el-button>
+      </div>
+      <div v-if="customCategories.length" class="category-manage-list">
+        <div v-for="category in customCategories" :key="category.id" class="category-manage-row">
+          <template v-if="editingCategoryId === category.id">
+            <el-input v-model="editingCategoryName" maxlength="40" @keyup.enter="saveCategoryName(category)" />
+            <el-button text type="primary" :loading="categoryBusy" @click="saveCategoryName(category)">保存</el-button>
+            <el-button text @click="editingCategoryId = null">取消</el-button>
+          </template>
+          <template v-else>
+            <span class="category-name">
+              <span>{{ category.name }}</span>
+              <small v-if="categoryInPlan(category.name)">当前计划使用中</small>
+            </span>
+            <el-button text type="primary" @click="beginRename(category)">重命名</el-button>
+            <el-button
+              text
+              type="danger"
+              :loading="categoryBusy"
+              :disabled="categoryInPlan(category.name)"
+              :title="categoryInPlan(category.name) ? '请先调整并保存当前计划的分类' : '删除分类'"
+              @click="deleteCategory(category)"
+            >删除</el-button>
+          </template>
+        </div>
+      </div>
+      <el-empty v-else description="还没有自定义分类" :image-size="56" />
+      <template #footer><el-button @click="categoriesOpen = false">完成</el-button></template>
     </el-dialog>
 
     <el-dialog v-model="restoreOpen" title="恢复默认计划？" width="460px" class="confirm-dialog" :close-on-click-modal="false">

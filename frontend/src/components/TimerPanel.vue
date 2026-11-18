@@ -19,7 +19,8 @@ const modeLabel = computed(() => {
 })
 const subLabel = computed(() => {
   if (timer.state.mode === 'pomo') {
-    return `第 ${timer.state.round + 1} 轮 · 专注 ${timer.config.focusMin} 分 / 休息 ${timer.config.breakMin} 分`
+    const minutes = timer.state.phase === 'focus' ? Math.round(timer.state.durationSec / 60) : timer.config.focusMin
+    return `第 ${timer.state.round + 1} 轮 · 专注 ${minutes} 分 / 休息 ${timer.config.breakMin} 分`
   }
   if (timer.state.mode === 'down') return `共 ${Math.round(timer.state.durationSec / 60)} 分钟`
   return '自由计时，随时结束'

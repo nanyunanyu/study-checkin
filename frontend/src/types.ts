@@ -27,6 +27,16 @@ export interface PlanItem {
   active: boolean
 }
 
+export interface PlanCategory {
+  id: number
+  name: string
+}
+
+export interface PlanCategoriesResponse {
+  presets: string[]
+  custom: PlanCategory[]
+}
+
 export interface DayTask {
   id: string
   startTime: string

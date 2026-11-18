@@ -23,6 +23,7 @@ async function submit() {
 
 <template>
   <div class="login-wrap">
+    <div class="login-theme-picker"><ThemePicker compact /></div>
     <el-card class="login-card" shadow="never">
       <div class="login-brand">
         <span class="brand-icon"><Icon name="today" :size="21" /></span>
@@ -40,7 +41,7 @@ async function submit() {
           <el-input v-model="username" autocomplete="username" placeholder="请输入账号" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="password" type="password" show-password autocomplete="current-password" placeholder="请输入密码" @keyup.enter="submit" />
+          <el-input v-model="password" type="password" show-password autocomplete="current-password" placeholder="请输入密码" />
         </el-form-item>
         <el-alert v-if="auth.error" class="login-alert" :title="auth.error" type="error" :closable="false" show-icon />
         <el-button class="login-submit" type="primary" native-type="submit" :loading="auth.submitting" block>
@@ -48,14 +49,19 @@ async function submit() {
         </el-button>
       </form>
 
-      <el-divider content-position="left">界面配色</el-divider>
-      <ThemePicker />
       <p class="login-footnote">账号由管理员创建 · 不支持自助注册</p>
     </el-card>
   </div>
 </template>
 
 <style scoped>
+.login-theme-picker {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 20;
+}
+
 .login-brand {
   display: flex;
   align-items: center;
@@ -81,7 +87,7 @@ async function submit() {
 }
 
 .login-form {
-  margin-top: 21px;
+  margin-top: 17px;
 }
 
 .login-form :deep(.el-form-item) {
@@ -98,15 +104,23 @@ async function submit() {
 }
 
 .login-submit {
+  width: 100%;
   height: 44px;
   margin-top: 3px;
   font-weight: 600;
 }
 
 .login-footnote {
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   color: var(--text-3);
   font-size: 10.5px;
   text-align: center;
+}
+
+@media (max-width: 560px) {
+  .login-theme-picker {
+    top: 12px;
+    right: 12px;
+  }
 }
 </style>

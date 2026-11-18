@@ -46,11 +46,21 @@ async function onImportFile(event: Event) {
       return
     }
     await ElMessageBox.confirm(
-      `将导入 ${parsed.days.length} 天记录，同一天的现有记录会被覆盖。继续？`,
+      `将导入 ${parsed.days.length} 天记录，同一天的现有记录会被覆盖，计划与历史记录中的自定义分类会合并到当前账号。继续？`,
       '确认导入备份',
       { confirmButtonText: '继续导入', cancelButtonText: '取消', type: 'warning', customClass: 'redesign-message-box' }
     )
     importing.value = true
+    const categoryNames = new Set<string>()
+    const collectCategory = (name: unknown) => {
+      if (typeof name === 'string' && name.trim()) categoryNames.add(name.trim())
+    }
+    if (Array.isArray(parsed.categories)) parsed.categories.forEach(collectCategory)
+    if (Array.isArray(parsed.plan)) parsed.plan.forEach((item: any) => collectCategory(item?.subject))
+    for (const log of parsed.days) {
+      if (Array.isArray(log?.tasks)) log.tasks.forEach((task: any) => collectCategory(task?.subject))
+    }
+    if (categoryNames.size) await api.importCategories([...categoryNames])
     if (Array.isArray(parsed.plan) && parsed.plan.length) {
       await data.savePlan(parsed.plan)
     }

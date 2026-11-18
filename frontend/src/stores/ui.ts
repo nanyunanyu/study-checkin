@@ -9,11 +9,12 @@ export const useUiStore = defineStore('ui', () => {
 
   function openDay(day: string) {
     focusDate.value = day
-    view.value = 'today'
+    go('today')
   }
 
   function go(next: ViewName) {
     view.value = next
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }
 
   return { view, focusDate, openDay, go }

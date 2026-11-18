@@ -19,8 +19,8 @@ const STORAGE_KEY = 'study.theme'
 const VALID = new Set([...THEMES.map((item) => item.id), 'auto'])
 
 export const useThemeStore = defineStore('theme', () => {
-  const saved = localStorage.getItem(STORAGE_KEY) || 'sky'
-  const mode = ref(VALID.has(saved) ? saved : 'sky')
+  const saved = localStorage.getItem(STORAGE_KEY) || 'mint'
+  const mode = ref(VALID.has(saved) ? saved : 'mint')
   const prefersDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
 
   const resolved = computed(() => (mode.value === 'auto' ? (prefersDark.value ? 'dark' : 'mint') : mode.value))
@@ -31,12 +31,13 @@ export const useThemeStore = defineStore('theme', () => {
     document.documentElement.classList.toggle('dark', isDark.value)
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta) {
-      meta.setAttribute('content', isDark.value ? '#101b29' : resolved.value === 'sky' ? '#f5f9fe' : '#f5f9fe')
+      const colors: Record<string, string> = { mint: '#f4fbf6', sky: '#f5faff', cream: '#fdfaf3', white: '#ffffff', dark: '#0c1118' }
+      meta.setAttribute('content', colors[resolved.value] || colors.mint)
     }
   }
 
   function setMode(next: string) {
-    mode.value = VALID.has(next) ? next : 'sky'
+    mode.value = VALID.has(next) ? next : 'mint'
     localStorage.setItem(STORAGE_KEY, mode.value)
   }
 

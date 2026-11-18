@@ -1,4 +1,4 @@
-import type { DayLog, OverviewResponse, PlanItem, StateResponse, User } from './types'
+import type { DayLog, OverviewResponse, PlanCategoriesResponse, PlanCategory, PlanItem, StateResponse, User } from './types'
 
 const TOKEN_KEY = 'study.token'
 const USER_KEY = 'study.user'
@@ -134,6 +134,20 @@ export const api = {
     request<{ ok: boolean }>('/api/password', { method: 'POST', body: { oldPassword, newPassword } }),
 
   state: () => request<StateResponse>('/api/state'),
+
+  categories: () => request<PlanCategoriesResponse>('/api/categories'),
+
+  importCategories: (names: string[]) =>
+    request<PlanCategoriesResponse>('/api/categories/import', { method: 'POST', body: { names } }),
+
+  createCategory: (name: string) =>
+    request<PlanCategory>('/api/categories', { method: 'POST', body: { name } }),
+
+  renameCategory: (id: number, name: string) =>
+    request<PlanCategory>(`/api/categories/${id}`, { method: 'PATCH', body: { name } }),
+
+  deleteCategory: (id: number) =>
+    request<{ ok: boolean }>(`/api/categories/${id}`, { method: 'DELETE' }),
 
   planTemplate: () => request<{ items: PlanItem[] }>('/api/plan/template'),
 

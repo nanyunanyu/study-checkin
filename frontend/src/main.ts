@@ -19,6 +19,7 @@ import {
   ElLoadingDirective,
   ElMessageBox,
   ElOption,
+  ElOptionGroup,
   ElRadioButton,
   ElRadioGroup,
   ElSelect,
@@ -40,7 +41,7 @@ const app = createApp(App).use(createPinia())
 const components = [
   ElAlert, ElAvatar, ElButton, ElButtonGroup, ElCard, ElCheckbox, ElDatePicker,
   ElDialog, ElDivider, ElEmpty, ElForm, ElFormItem, ElIcon, ElInput,
-  ElInputNumber, ElOption, ElRadioButton, ElRadioGroup, ElSelect, ElSkeleton,
+  ElInputNumber, ElOption, ElOptionGroup, ElRadioButton, ElRadioGroup, ElSelect, ElSkeleton,
   ElSwitch, ElTag, ElTimePicker
 ]
 

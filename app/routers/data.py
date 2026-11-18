@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..db import backup_snapshot, get_db, now_iso
+from ..db import backup_snapshot, ensure_plan_categories, get_db, now_iso
 from ..deps import current_account
 from ..schemas import DayIn, PlanIn
 from ..serialize import day_row_to_log, plan_row_to_item
@@ -80,6 +80,8 @@ def save_plan(
         if item.id in seen:
             raise HTTPException(status_code=400, detail="计划条目 id 重复")
         seen.add(item.id)
+
+    ensure_plan_categories(conn, owner_id, (item.subject for item in payload.items))
 
     conn.execute("DELETE FROM plan_items WHERE owner_id=?", (owner_id,))
     conn.executemany(
@@ -164,9 +166,13 @@ def save_day(
 @router.get("/export")
 def export_data(account=Depends(current_account), conn=Depends(get_db)):
     owner_id = account["id"]
+    categories = conn.execute(
+        "SELECT name FROM plan_categories WHERE owner_id=? ORDER BY id ASC", (owner_id,)
+    ).fetchall()
     return {
         "exportedAt": now_iso(),
         "username": account["username"],
         "plan": load_plan(conn, owner_id),
         "days": load_days(conn, owner_id, limit=5000),
+        "categories": [row["name"] for row in categories],
     }

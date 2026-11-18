@@ -189,6 +189,7 @@ def delete_user(
 
     conn.execute("DELETE FROM day_logs WHERE owner_id=?", (account_id,))
     conn.execute("DELETE FROM plan_items WHERE owner_id=?", (account_id,))
+    conn.execute("DELETE FROM plan_categories WHERE owner_id=?", (account_id,))
     conn.execute("DELETE FROM sessions WHERE account_id=?", (account_id,))
     conn.execute("DELETE FROM accounts WHERE id=?", (account_id,))
     _audit(conn, admin["id"], "delete_user", account_id, target["username"])

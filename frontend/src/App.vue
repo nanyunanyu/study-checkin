@@ -19,6 +19,7 @@ import TimerPanel from './components/TimerPanel.vue'
 import ToastStack from './components/ToastStack.vue'
 import PasswordModal from './components/PasswordModal.vue'
 import Icon from './components/Icon.vue'
+import ThemePicker from './components/ThemePicker.vue'
 
 const auth = useAuthStore()
 const data = useDataStore()
@@ -41,10 +42,6 @@ const tabs = computed<Array<{ id: ViewName; label: string; icon: string }>>(() =
 const initial = computed(() => (auth.user?.displayName || auth.user?.username || '?').slice(0, 1))
 const showForcePassword = computed(() => Boolean(auth.user?.mustChangePassword))
 const activeLabel = computed(() => tabs.value.find((tab) => tab.id === ui.view)?.label || '今日')
-
-function toggleTheme() {
-  theme.setMode(theme.isDark ? 'sky' : 'dark')
-}
 
 let tickHandle = 0
 
@@ -147,10 +144,7 @@ watch(
           <header class="topbar">
             <div class="breadcrumb">我的学习 <span>/</span> <strong>{{ activeLabel }}</strong></div>
             <div class="top-meta">
-              <el-button class="theme-toggle" circle aria-label="切换浅色或深色主题" @click="toggleTheme">
-                <Icon :name="theme.isDark ? 'sun' : 'moon'" :size="17" />
-              </el-button>
-              <span class="top-meta-divider" />
+              <ThemePicker compact />
               <span class="top-meta-name">{{ auth.user?.displayName || auth.user?.username }}</span>
               <el-avatar :size="32">{{ initial }}</el-avatar>
             </div>

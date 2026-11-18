@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from .db import connect, get_db, init_db
-from .routers import admin, auth, data
+from .routers import admin, auth, categories, data
 from .seed import ensure_seed
 
 WEBUI_DIR = Path(__file__).resolve().parent / "webui"
@@ -31,6 +31,7 @@ def health(conn=Depends(get_db)):
 
 app.include_router(auth.router)
 app.include_router(data.router)
+app.include_router(categories.router)
 app.include_router(admin.router)
 
 

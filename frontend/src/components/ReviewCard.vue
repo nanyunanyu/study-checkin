@@ -69,13 +69,13 @@ function removeCustomProblem(problem: string) {
           <div class="grid-2">
             <el-input
               :readonly="readonly"
-              :value="review.best?.[0] || ''"
+              :model-value="review.best?.[0] || ''"
               placeholder="① 例如：晨背 40 分钟记了 60 个单词"
               @input="setBest(0, $event)"
             />
             <el-input
               :readonly="readonly"
-              :value="review.best?.[1] || ''"
+              :model-value="review.best?.[1] || ''"
               placeholder="② 可留空"
               @input="setBest(1, $event)"
             />
@@ -111,7 +111,7 @@ function removeCustomProblem(problem: string) {
           <el-input
             v-if="(review.problems || []).includes('其他')"
             :readonly="readonly"
-            :value="review.other"
+            :model-value="review.other"
             placeholder="具体是什么问题"
             style="margin-top: 8px"
             @input="emit('update', { other: $event })"
@@ -120,12 +120,12 @@ function removeCustomProblem(problem: string) {
 
         <div>
           <div class="hint" style="margin-bottom: 6px">明日优先解决</div>
-          <div class="stack" style="gap: 8px">
+          <div class="stack priority-list" style="gap: 8px">
             <div v-for="index in visiblePriorityCount" :key="index" class="priority-row">
               <span class="priority-index">{{ index }}.</span>
               <el-input
                 :readonly="readonly"
-                :value="review.priorities?.[index - 1] || ''"
+                :model-value="review.priorities?.[index - 1] || ''"
                 :placeholder="`优先解决事项 ${index}`"
                 @input="setPriority(index - 1, $event)"
               />
@@ -141,7 +141,7 @@ function removeCustomProblem(problem: string) {
             type="textarea"
             :rows="3"
             :readonly="readonly"
-            :value="review.adjustment"
+            :model-value="review.adjustment"
             placeholder="例如：上午网课容易走神，改成先看 15 分钟再做笔记"
             @input="emit('update', { adjustment: $event })"
           />
@@ -157,6 +157,22 @@ function removeCustomProblem(problem: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+
+.review-problem-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
+  gap: 8px;
+}
+
+.review-problem-options > .el-button {
+  width: 100%;
+  min-height: 40px;
+  height: auto;
+  margin: 0;
+  padding: 7px 9px;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .review-custom-problems {
@@ -188,8 +204,20 @@ function removeCustomProblem(problem: string) {
 
 .review-custom-entry {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 12px;
+}
+
+.review-custom-entry .el-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.review-custom-entry .el-button {
+  min-height: 40px;
+  margin: 0;
+  flex: none;
 }
 
 .priority-row {
@@ -205,17 +233,23 @@ function removeCustomProblem(problem: string) {
   font-variant-numeric: tabular-nums;
 }
 
+.priority-list .priority-row .el-input__wrapper {
+  min-height: 40px;
+}
+
 .add-priority-btn {
   align-self: flex-start;
+  min-height: 38px;
+  margin-top: 12px;
 }
 
 @media (max-width: 560px) {
-  .review-custom-entry {
-    flex-direction: column;
+  .review-problem-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .review-custom-entry .btn {
-    min-height: 42px;
+  .review-custom-entry .el-button {
+    padding: 0 11px;
   }
 }
 </style>
