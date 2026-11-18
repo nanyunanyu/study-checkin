@@ -41,6 +41,7 @@ export interface DayTask {
   id: string
   startTime: string
   endTime: string
+  timeOverridden?: boolean
   title: string
   subject: string
   note: string
@@ -74,8 +75,14 @@ export interface StateResponse {
 
 export interface OverviewResponse {
   user: User
-  stats: { todayCompletion: number; todayCheckedIn: boolean; streak: number; checkinDays: number; totalFocusSec: number }
+  stats: LearningSummary & { todayCompletion: number; todayCheckedIn: boolean }
   plan: PlanItem[]
   days: DayLog[]
   readonly: boolean
+}
+
+export interface LearningSummary {
+  streak: number
+  checkinDays: number
+  totalFocusSec: number
 }

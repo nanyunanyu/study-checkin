@@ -40,6 +40,7 @@ class TaskIn(BaseModel):
     id: str
     startTime: str = ""
     endTime: str = ""
+    timeOverridden: bool = False
     title: str = ""
     subject: str = "其他"
     note: str = ""

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { Review } from '../types'
 import { PROBLEM_OPTIONS } from '../utils'
 import Icon from './Icon.vue'
 
 const props = defineProps<{ review: Review; readonly?: boolean }>()
 const emit = defineEmits<{ (event: 'update', patch: Partial<Review>): void }>()
-const customProblem = ref('')
 const visiblePriorityCount = computed(() => Math.max(3, props.review.priorities?.length || 0))
 const customProblems = computed(() => (props.review.problems || []).filter((problem) => !PROBLEM_OPTIONS.includes(problem)))
 
@@ -39,13 +38,6 @@ function toggleProblem(problem: string) {
   if (set.has(problem)) set.delete(problem)
   else set.add(problem)
   emit('update', { problems: [...set] })
-}
-
-function addCustomProblem() {
-  const value = customProblem.value.trim()
-  if (!value || (props.review.problems || []).includes(value)) return
-  emit('update', { problems: [...(props.review.problems || []), value] })
-  customProblem.value = ''
 }
 
 function removeCustomProblem(problem: string) {
@@ -92,6 +84,7 @@ function removeCustomProblem(problem: string) {
               :class="{ active: (review.problems || []).includes(option) }"
               :type="(review.problems || []).includes(option) ? 'primary' : 'default'"
               size="small"
+              :aria-pressed="(review.problems || []).includes(option)"
               :disabled="readonly"
               @click="toggleProblem(option)"
             >
@@ -104,10 +97,6 @@ function removeCustomProblem(problem: string) {
               <el-button v-if="!readonly" text circle type="danger" :aria-label="`删除问题：${problem}`" @click="removeCustomProblem(problem)">×</el-button>
             </span>
           </div>
-          <form v-if="!readonly" class="review-custom-entry" @submit.prevent="addCustomProblem">
-            <el-input v-model="customProblem" placeholder="输入自定义问题" maxlength="80" />
-            <el-button type="primary" native-type="submit" :disabled="!customProblem.trim()"><Icon name="plus" :size="14" />添加问题</el-button>
-          </form>
           <el-input
             v-if="(review.problems || []).includes('其他')"
             :readonly="readonly"
@@ -132,7 +121,9 @@ function removeCustomProblem(problem: string) {
               <el-button v-if="!readonly && visiblePriorityCount > 3" class="priority-remove" text circle type="danger" :aria-label="`删除第 ${index} 项`" @click="removePriority(index - 1)"><Icon name="trash" :size="14" /></el-button>
             </div>
           </div>
-          <el-button v-if="!readonly" class="add-priority-btn" type="primary" plain @click="addPriority"><Icon name="plus" :size="14" />新增优先事项</el-button>
+          <div v-if="!readonly" class="priority-actions">
+            <el-button class="add-priority-btn" size="small" type="primary" text @click="addPriority"><Icon name="plus" :size="13" />新增优先事项</el-button>
+          </div>
         </div>
 
         <div>
@@ -159,20 +150,13 @@ function removeCustomProblem(problem: string) {
   gap: 7px;
 }
 
-.review-problem-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr));
-  gap: 8px;
-}
-
 .review-problem-options > .el-button {
-  width: 100%;
-  min-height: 40px;
-  height: auto;
+  width: auto;
+  min-height: 30px;
+  height: 30px;
   margin: 0;
-  padding: 7px 9px;
-  line-height: 1.35;
-  white-space: normal;
+  padding: 0 9px;
+  font-size: 12px;
 }
 
 .review-custom-problems {
@@ -183,8 +167,8 @@ function removeCustomProblem(problem: string) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 32px;
-  padding: 4px 8px 4px 11px;
+  min-height: 28px;
+  padding: 1px 4px 1px 8px;
   border: 1px solid var(--accent);
   border-radius: 99px;
   background: var(--accent-soft);
@@ -202,27 +186,9 @@ function removeCustomProblem(problem: string) {
   line-height: 1;
 }
 
-.review-custom-entry {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.review-custom-entry .el-input {
-  min-width: 0;
-  flex: 1;
-}
-
-.review-custom-entry .el-button {
-  min-height: 40px;
-  margin: 0;
-  flex: none;
-}
-
 .priority-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 34px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
 }
@@ -237,19 +203,7 @@ function removeCustomProblem(problem: string) {
   min-height: 40px;
 }
 
-.add-priority-btn {
-  align-self: flex-start;
-  min-height: 38px;
-  margin-top: 12px;
-}
-
-@media (max-width: 560px) {
-  .review-problem-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .review-custom-entry .el-button {
-    padding: 0 11px;
-  }
-}
+.priority-row:not(:has(.priority-remove)) { grid-template-columns: 20px minmax(0, 1fr); }
+.priority-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.add-priority-btn { min-height: 30px; padding-inline: 7px; }
 </style>

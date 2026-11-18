@@ -49,12 +49,15 @@ onBeforeUnmount(() => {
       aria-haspopup="listbox"
       @click="open = !open"
     >
-      <span class="theme-preview-swatch" :style="{ background: selected.swatch }" />
-      <span class="theme-trigger-copy">
+      <svg v-if="compact" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 4 3 7l2 5 3-1v9h8v-9l3 1 2-5-5-3a4 4 0 0 1-8 0Z" />
+      </svg>
+      <span v-if="!compact" class="theme-preview-swatch" :style="{ background: selected.swatch }" />
+      <span v-if="!compact" class="theme-trigger-copy">
         <span class="theme-trigger-label">{{ selected.label }}</span>
         <span v-if="!compact" class="theme-trigger-hint">当前配色 · 已实时应用</span>
       </span>
-      <Icon :name="open ? 'up' : 'down'" :size="15" />
+      <Icon v-if="!compact" :name="open ? 'up' : 'down'" :size="15" />
     </button>
 
     <div v-if="open" class="theme-options" role="listbox" aria-label="选择配色方案">
@@ -96,22 +99,12 @@ onBeforeUnmount(() => {
 }
 
 .theme-picker.compact .theme-trigger {
-  width: auto;
-  min-height: 38px;
-  gap: 7px;
-  padding: 5px 9px;
-  border-radius: 10px;
-}
-
-.theme-picker.compact .theme-preview-swatch {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-}
-
-.theme-picker.compact .theme-trigger-label {
-  font-size: 11px;
-  white-space: nowrap;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  border-radius: 8px;
 }
 
 .theme-trigger {

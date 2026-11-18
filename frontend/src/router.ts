@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationNormalized } from 'vue-router'
 import type { useAuthStore } from './stores/auth'
 
-export type ViewName = 'today' | 'plan' | 'stats' | 'admin' | 'settings'
+export type ViewName = 'today' | 'plan' | 'stats' | 'admin' | 'me'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -13,7 +13,8 @@ export const router = createRouter({
     { path: '/plan', name: 'plan', component: () => import('./views/Plan.vue') },
     { path: '/stats', name: 'stats', component: () => import('./views/Stats.vue') },
     { path: '/admin', name: 'admin', meta: { requiresAdmin: true }, component: () => import('./views/Admin.vue') },
-    { path: '/settings', name: 'settings', component: () => import('./views/Settings.vue') },
+    { path: '/me', name: 'me', component: () => import('./views/Me.vue') },
+    { path: '/settings', redirect: { name: 'me' } },
     { path: '/:pathMatch(.*)*', redirect: '/today' }
   ],
   scrollBehavior() {

@@ -18,6 +18,7 @@ import {
   Setting,
   Sunny,
   Timer,
+  User,
   VideoPause,
   VideoPlay
 } from '@element-plus/icons-vue'
@@ -30,6 +31,7 @@ const icons: Record<string, unknown> = {
   stats: DataAnalysis,
   admin: CircleCheck,
   settings: Setting,
+  user: User,
   play: VideoPlay,
   pause: VideoPause,
   close: Close,

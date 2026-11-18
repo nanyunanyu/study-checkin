@@ -83,24 +83,24 @@ const trendAverage = computed(() => {
 
 <template>
   <div class="stack">
-    <div class="kpi-grid">
-      <section class="card kpi">
-        <div class="kpi-value">{{ streak }} 天</div>
-        <div class="kpi-label">连续打卡</div>
-      </section>
-      <section class="card kpi">
-        <div class="kpi-value">{{ monthCompletion }}%</div>
-        <div class="kpi-label">本月平均完成率</div>
-      </section>
-      <section class="card kpi">
-        <div class="kpi-value">{{ formatDuration(totalFocus) }}</div>
-        <div class="kpi-label">累计专注</div>
-      </section>
-      <section class="card kpi">
-        <div class="kpi-value">{{ checkins }}</div>
-        <div class="kpi-label">累计打卡天数</div>
-      </section>
-    </div>
+    <dl class="stats-summary" aria-label="学习统计概览">
+      <div>
+        <dt>连续打卡</dt>
+        <dd>{{ streak }} 天</dd>
+      </div>
+      <div>
+        <dt>本月平均完成率</dt>
+        <dd>{{ monthCompletion }}%</dd>
+      </div>
+      <div>
+        <dt>累计专注</dt>
+        <dd>{{ formatDuration(totalFocus) }}</dd>
+      </div>
+      <div>
+        <dt>累计打卡天数</dt>
+        <dd>{{ checkins }} 天</dd>
+      </div>
+    </dl>
 
     <section class="card card-pad">
       <div class="card-head">
@@ -148,3 +148,47 @@ const trendAverage = computed(() => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-solid);
+}
+
+.stats-summary > div {
+  min-width: 0;
+  padding: 9px 14px;
+}
+
+.stats-summary > div + div {
+  border-inline-start: 1px solid var(--border);
+}
+
+.stats-summary dt {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stats-summary dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .stats-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-summary > div { padding: 7px 11px; }
+  .stats-summary > div:nth-child(odd) { border-inline-start: 0; }
+  .stats-summary > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
+  .stats-summary dd { font-size: 16px; }
+}
+</style>

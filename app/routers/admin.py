@@ -1,15 +1,14 @@
 import re
-from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..db import get_db, now_iso, today_cn
+from ..db import get_db, now_iso
 from ..deps import require_superadmin
 from ..schemas import ResetPasswordIn, UserCreateIn, UserPatchIn
 from ..security import hash_password
 from ..seed import copy_default_plan
 from ..serialize import account_to_user
-from .data import load_days, load_plan
+from .data import learning_stats, load_days, load_plan
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -21,33 +20,6 @@ def _audit(conn, actor_id: int, action: str, target_id: int | None, detail: str 
         "INSERT INTO audit_log(actor_id, action, target_id, detail, created_at) VALUES (?,?,?,?,?)",
         (actor_id, action, target_id, detail, now_iso()),
     )
-
-
-def _stats(conn, owner_id: int) -> dict:
-    rows = conn.execute(
-        "SELECT day, completion, checked_in, focus_sec FROM day_logs WHERE owner_id=?",
-        (owner_id,),
-    ).fetchall()
-    by_day = {row["day"]: row for row in rows}
-    checked = {row["day"] for row in rows if row["checked_in"]}
-
-    today = today_cn()
-    cursor = datetime.strptime(today, "%Y-%m-%d").date()
-    if today not in checked:
-        cursor -= timedelta(days=1)
-    streak = 0
-    while cursor.isoformat() in checked:
-        streak += 1
-        cursor -= timedelta(days=1)
-
-    today_row = by_day.get(today)
-    return {
-        "todayCompletion": float(today_row["completion"]) if today_row else 0.0,
-        "todayCheckedIn": bool(today_row["checked_in"]) if today_row else False,
-        "streak": streak,
-        "checkinDays": len(checked),
-        "totalFocusSec": sum(int(row["focus_sec"] or 0) for row in rows),
-    }
 
 
 def _get_account(conn, account_id: int):
@@ -65,7 +37,7 @@ def list_users(admin=Depends(require_superadmin), conn=Depends(get_db)):
     users = []
     for row in rows:
         item = account_to_user(row)
-        item.update(_stats(conn, row["id"]))
+        item.update(learning_stats(conn, row["id"]))
         users.append(item)
     return {"users": users}
 
@@ -204,7 +176,7 @@ def user_overview(
     target = _get_account(conn, account_id)
     return {
         "user": account_to_user(target),
-        "stats": _stats(conn, account_id),
+        "stats": learning_stats(conn, account_id),
         "plan": load_plan(conn, account_id),
         "days": load_days(conn, account_id),
         "readonly": True,

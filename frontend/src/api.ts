@@ -1,4 +1,4 @@
-import type { DayLog, OverviewResponse, PlanCategoriesResponse, PlanCategory, PlanItem, StateResponse, User } from './types'
+import type { DayLog, LearningSummary, OverviewResponse, PlanCategoriesResponse, PlanCategory, PlanItem, StateResponse, User } from './types'
 
 const TOKEN_KEY = 'study.token'
 const USER_KEY = 'study.user'
@@ -134,6 +134,7 @@ export const api = {
     request<{ ok: boolean }>('/api/password', { method: 'POST', body: { oldPassword, newPassword } }),
 
   state: () => request<StateResponse>('/api/state'),
+  learningSummary: () => request<LearningSummary>('/api/learning-summary'),
 
   categories: () => request<PlanCategoriesResponse>('/api/categories'),
 

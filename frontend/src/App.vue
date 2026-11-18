@@ -33,7 +33,7 @@ const tabs = computed<Array<{ id: ViewName; label: string; icon: string }>>(() =
     { id: 'stats', label: '统计', icon: 'stats' }
   ]
   if (auth.isSuperadmin) list.push({ id: 'admin', label: '后台', icon: 'admin' })
-  list.push({ id: 'settings', label: '设置', icon: 'settings' })
+  list.push({ id: 'me', label: '我的', icon: 'user' })
   return list
 })
 

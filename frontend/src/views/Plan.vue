@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { defaultFocusMinutes, todayStr, uuid } from '../utils'
 import type { PlanItem } from '../types'
 import Icon from '../components/Icon.vue'
+import TimeRangePicker from '../components/TimeRangePicker.vue'
 
 const data = useDataStore()
 const toast = useToastStore()
@@ -25,6 +26,28 @@ const newCategoryName = ref('')
 const categoryBusy = ref(false)
 const editingCategoryId = ref<number | null>(null)
 const editingCategoryName = ref('')
+const editingTime = ref<PlanItem | null>(null)
+const list = ref<HTMLElement>()
+const drop = ref<{ id: string; after: boolean } | null>(null)
+const dragId = ref<string | null>(null)
+const sortAnnouncement = ref('')
+let drag: { id: string; pointer: number; startY: number; y: number; handle: HTMLElement } | null = null
+let frame = 0
+
+function timeLabel(item: PlanItem) {
+  if (!item.startTime && !item.endTime) return '设置时间'
+  return `${item.startTime || '—'} 至 ${item.endTime || '—'}`
+}
+
+function applyTime(range: Pick<PlanItem, 'startTime' | 'endTime'>) {
+  const item = editingTime.value
+  if (!item) return
+  if (item.startTime !== range.startTime || item.endTime !== range.endTime) {
+    Object.assign(item, range)
+    if (!addOpen.value) mark()
+  }
+  editingTime.value = null
+}
 
 async function loadCategories() {
   const result = await api.categories()
@@ -176,13 +199,108 @@ function remove(index: number) {
   mark()
 }
 
-function move(index: number, delta: number) {
-  const target = index + delta
-  if (target < 0 || target >= items.value.length) return
+function move(index: number, target: number) {
+  if (index < 0 || target < 0 || target >= items.value.length || target === index) return
   const [item] = items.value.splice(index, 1)
   items.value.splice(target, 0, item)
+  sortAnnouncement.value = `${item.title || '计划'}已移到第 ${target + 1} 项`
   mark()
 }
+
+function onSortKey(event: KeyboardEvent, id: string) {
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+  event.preventDefault()
+  const index = items.value.findIndex((item) => item.id === id)
+  move(index, index + (event.key === 'ArrowUp' ? -1 : 1))
+  const handle = event.currentTarget as HTMLElement
+  requestAnimationFrame(() => {
+    handle.focus({ preventScroll: true })
+    handle.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+function startDrag(event: PointerEvent, id: string) {
+  if (drag || !event.isPrimary || event.button !== 0 || items.value.length < 2 || saving.value) return
+  const handle = event.currentTarget as HTMLElement
+  handle.setPointerCapture(event.pointerId)
+  drag = { id, pointer: event.pointerId, startY: event.clientY, y: event.clientY, handle }
+}
+
+function updateDrop() {
+  if (!drag || !list.value) return
+  const bounds = list.value.getBoundingClientRect()
+  if (drag.y < bounds.top - 16 || drag.y > bounds.bottom + 16) {
+    drop.value = null
+    return
+  }
+  let id = ''
+  for (const row of list.value.children as HTMLCollectionOf<HTMLElement>) {
+    if (!row.dataset.itemId || row.dataset.itemId === drag.id) continue
+    id = row.dataset.itemId
+    const rect = row.getBoundingClientRect()
+    if (drag.y < rect.top + rect.height / 2) {
+      drop.value = { id, after: false }
+      return
+    }
+  }
+  drop.value = id ? { id, after: true } : null
+}
+
+function scrollWhileDragging() {
+  if (!drag || !dragId.value) return
+  const edge = 80
+  const bottom = window.innerHeight - (window.matchMedia('(max-width: 820px)').matches ? 62 : 0)
+  const speed = drag.y < edge ? -Math.min(18, (edge - drag.y) / 4)
+    : drag.y > bottom - edge ? Math.min(18, (drag.y - bottom + edge) / 4) : 0
+  if (speed) {
+    window.scrollBy(0, speed)
+    updateDrop()
+  }
+  frame = requestAnimationFrame(scrollWhileDragging)
+}
+
+function dragMove(event: PointerEvent) {
+  if (!drag || event.pointerId !== drag.pointer) return
+  drag.y = event.clientY
+  if (!dragId.value) {
+    if (Math.abs(drag.y - drag.startY) < 5) return
+    dragId.value = drag.id
+    frame = requestAnimationFrame(scrollWhileDragging)
+  }
+  updateDrop()
+}
+
+function resetDrag() {
+  const previous = drag
+  drag = null
+  dragId.value = null
+  drop.value = null
+  cancelAnimationFrame(frame)
+  if (previous?.handle.hasPointerCapture(previous.pointer)) previous.handle.releasePointerCapture(previous.pointer)
+}
+
+function finishDrag(event: PointerEvent) {
+  if (!drag || event.pointerId !== drag.pointer) return
+  const item = drag.id
+  if (dragId.value) {
+    drag.y = event.clientY
+    updateDrop()
+  }
+  const target = drop.value
+  resetDrag()
+  if (target) {
+    const from = items.value.findIndex(({ id }) => id === item)
+    let to = items.value.findIndex(({ id }) => id === target.id) + (target.after ? 1 : 0)
+    if (from < to) to--
+    move(from, to)
+  }
+}
+
+function cancelDrag(event: PointerEvent) {
+  if (drag?.pointer === event.pointerId) resetDrag()
+}
+
+onBeforeUnmount(resetDrag)
 
 async function save() {
   if (items.value.some((item) => !item.title.trim())) {
@@ -239,13 +357,18 @@ async function restoreDefault() {
 
       <div v-if="!items.length" class="empty">还没有任何时间段，点「新增计划表」开始</div>
 
-      <article v-for="(item, index) in items" :key="item.id" class="plan-item">
+      <span class="sort-announcement" aria-live="polite">{{ sortAnnouncement }}</span>
+      <div ref="list" class="plan-sort-list">
+      <article v-for="(item, index) in items" :key="item.id" :data-item-id="item.id" class="plan-item" :class="{
+        'plan-dragging': dragId === item.id, 'plan-drop-before': drop?.id === item.id && !drop.after, 'plan-drop-after': drop?.id === item.id && drop.after
+      }">
+        <button
+          type="button" class="plan-grip" :aria-label="`排序：${item.title || `第 ${index + 1} 项`}`" title="拖动排序" aria-keyshortcuts="ArrowUp ArrowDown"
+          @pointerdown="startDrag($event, item.id)" @pointermove="dragMove" @pointerup="finishDrag" @pointercancel="cancelDrag" @lostpointercapture="cancelDrag"
+          @keydown="onSortKey($event, item.id)" @keydown.esc="resetDrag"
+        ><span aria-hidden="true" /></button>
         <div class="plan-row">
-          <div class="plan-time">
-            <input v-model="item.startTime" class="plan-native-time" type="time" aria-label="开始时间" @input="mark" />
-            <span class="hint">至</span>
-            <input v-model="item.endTime" class="plan-native-time" type="time" aria-label="结束时间" @input="mark" />
-          </div>
+          <button class="plan-time-button" type="button" :aria-label="`编辑计划时间：${item.title}`" @click="editingTime = item">{{ timeLabel(item) }}</button>
           <el-input v-model="item.title" placeholder="任务内容" @input="mark" />
           <select v-model="item.subject" class="plan-category-select plan-native-select" aria-label="计划类别" @change="mark">
             <option v-if="!categoryNames.has(item.subject)" :value="item.subject">{{ item.subject }}</option>
@@ -260,8 +383,6 @@ async function restoreDefault() {
             <el-button circle text :aria-label="expandedIds.has(item.id) ? '收起详情' : '展开详情'" :aria-expanded="expandedIds.has(item.id)" title="详情" @click="toggleExpanded(item.id)">
               <Icon :name="expandedIds.has(item.id) ? 'up' : 'down'" :size="14" />
             </el-button>
-            <el-button circle text :disabled="index === 0" aria-label="上移" title="上移" @click="move(index, -1)"><Icon name="up" :size="14" /></el-button>
-            <el-button circle text :disabled="index === items.length - 1" aria-label="下移" title="下移" @click="move(index, 1)"><Icon name="down" :size="14" /></el-button>
             <el-button circle text type="danger" aria-label="删除" title="删除" @click="remove(index)"><Icon name="trash" :size="14" /></el-button>
           </div>
         </div>
@@ -281,6 +402,7 @@ async function restoreDefault() {
           </div>
         </div>
       </article>
+      </div>
     </section>
 
     <p class="hint" style="padding: 0 4px">
@@ -297,12 +419,8 @@ async function restoreDefault() {
             </div>
             <div class="batch-fields">
               <div class="field">
-                <label>开始时间</label>
-                <el-time-picker v-model="item.startTime" class="time-picker" format="HH:mm" value-format="HH:mm" placeholder="开始时间" :clearable="false" />
-              </div>
-              <div class="field">
-                <label>结束时间</label>
-                <el-time-picker v-model="item.endTime" class="time-picker" format="HH:mm" value-format="HH:mm" placeholder="结束时间" :clearable="false" />
+                <label>时间段</label>
+                <button class="plan-time-button" type="button" :aria-label="`设置第 ${index + 1} 条计划的时间`" @click="editingTime = item">{{ timeLabel(item) }}</button>
               </div>
               <div class="field batch-title-field">
                 <label>任务内容</label>
@@ -376,5 +494,33 @@ async function restoreDefault() {
           </div>
         </template>
     </el-dialog>
+    <TimeRangePicker v-if="editingTime" title="编辑计划时间" :start-time="editingTime.startTime" :end-time="editingTime.endTime" @confirm="applyTime" @cancel="editingTime = null" />
   </div>
 </template>
+
+<style scoped>
+.plan-item { position: relative; padding-left: 33px; }
+.plan-item.plan-dragging { opacity: .55; }
+.plan-drop-before::before, .plan-drop-after::after { content: ''; position: absolute; z-index: 1; left: 7px; right: 5px; height: 2px; border-radius: 2px; background: var(--accent); }
+.plan-drop-before::before { top: -1px; }
+.plan-drop-after::after { bottom: -1px; }
+.plan-grip { position: absolute; inset: 6px auto 6px 0; display: grid; place-items: center; width: 29px; color: var(--text-3); border-radius: 6px; cursor: grab; touch-action: none; user-select: none; }
+.plan-grip span { width: 12px; height: 18px; background: radial-gradient(circle, currentColor 1.25px, transparent 1.6px) 0 0 / 6px 6px; }
+.plan-grip:hover, .plan-grip:focus-visible { color: var(--accent-text); background: var(--accent-soft); }
+.plan-dragging .plan-grip { cursor: grabbing; }
+.plan-time-button { min-height: 34px; padding: 0 8px; white-space: nowrap; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-solid); color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.plan-time-button:hover { border-color: var(--accent); color: var(--accent-text); }
+.plan-row { grid-template-columns: 113px minmax(0, 1fr) minmax(95px, 128px) auto; }
+.sort-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 820px) {
+  .plan-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px 6px; }
+  .plan-row > .el-input { grid-column: 1 / -1; grid-row: 1; }
+  .plan-row > .plan-time-button { grid-column: 1; grid-row: 2; justify-self: start; padding-inline: 6px; }
+  .plan-row > .plan-category-select { grid-column: 2; grid-row: 2; width: clamp(61px, 19vw, 110px); padding-inline: 4px; font-size: 12px; }
+  .plan-row > .plan-actions { grid-column: 3; grid-row: 2; }
+  .plan-row .plan-actions :deep(.el-button) { width: 28px; height: 33px; }
+  .plan-row > .plan-time-button, .plan-row > .plan-category-select { min-height: 32px; height: 32px; }
+  .plan-item { padding-left: 25px; }
+  .plan-grip { width: 22px; }
+}
+</style>

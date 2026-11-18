@@ -4,6 +4,8 @@ import { api } from '../api'
 import type { DayLog, PlanItem, User } from '../types'
 import { completeDay, emptyReview, normalizeReview, tasksFromPlan, todayStr } from '../utils'
 
+type TimeEdit = { id: string; startTime: string; endTime: string; timeOverridden: boolean }
+
 export const useDataStore = defineStore('data', () => {
   const plan = ref<PlanItem[]>([])
   const days = ref<Record<string, DayLog>>({})
@@ -14,6 +16,8 @@ export const useDataStore = defineStore('data', () => {
   const error = ref('')
 
   const timers: Record<string, number> = {}
+  const writes = new Map<string, Promise<void>>()
+  let accountGeneration = 0
 
   function indexDays(list: DayLog[]) {
     const map: Record<string, DayLog> = {}
@@ -75,11 +79,13 @@ export const useDataStore = defineStore('data', () => {
     if (!create || !loaded.value) return emptyDay(day)
     const fresh = emptyDay(day)
     days.value = { ...days.value, [day]: fresh }
-    return fresh
+    return days.value[day]
   }
 
   /** 切换账号 / 退出登录时清空，避免上一个账号的计划和数据被带到下一个账号 */
   function reset() {
+    accountGeneration++
+    writes.clear()
     for (const key of Object.keys(timers)) {
       window.clearTimeout(timers[key])
       delete timers[key]
@@ -94,28 +100,53 @@ export const useDataStore = defineStore('data', () => {
     inflight = null
   }
 
-  async function saveDay(day: string) {
-    const log = days.value[day]
-    if (!log) return
+  function saveDay(day: string, edit?: TimeEdit) {
+    const generation = accountGeneration
     pending.value += 1
-    try {
-      const saved = await api.saveDay(day, log)
-      const current = days.value[day]
-      days.value = {
-        ...days.value,
-        [day]: {
-          ...current,
-          ...saved,
-          review: normalizeReview(saved.review)
+    const previous = writes.get(day) ?? Promise.resolve()
+    const write = previous.catch(() => undefined).then(async () => {
+      try {
+        if (generation !== accountGeneration) return
+        const log = days.value[day]
+        if (!log) return
+        if (edit && !log.tasks.some((task) => task.id === edit.id)) throw new Error('这条任务已不在今日计划中')
+        const patchTimes = (task: DayLog['tasks'][number]) => {
+          if (!edit || task.id !== edit.id) return task
+          const { id, ...times } = edit
+          return { ...task, ...times }
         }
+        const saved = await api.saveDay(day, edit ? { ...log, tasks: log.tasks.map(patchTimes) } : log)
+        if (generation !== accountGeneration) return
+        const current = days.value[day]
+        if (current) {
+          if (edit) current.tasks = current.tasks.map(patchTimes)
+          current.updatedAt = saved.updatedAt
+        }
+        savedAt.value = Math.max(Date.now(), (savedAt.value || 0) + 1)
+      } catch (err: any) {
+        if (generation === accountGeneration) error.value = err?.message || '保存失败'
+        throw err
+      } finally {
+        if (generation === accountGeneration) pending.value -= 1
       }
-      savedAt.value = Date.now()
-    } catch (err: any) {
-      error.value = err?.message || '保存失败'
-      throw err
-    } finally {
-      pending.value -= 1
+    })
+    writes.set(day, write)
+    const cleanup = () => { if (writes.get(day) === write) writes.delete(day) }
+    void write.then(cleanup, cleanup)
+    return write
+  }
+
+  function setTodayTaskTime(id: string, range: { startTime: string; endTime: string } | null) {
+    const day = todayStr()
+    const item = plan.value.find((entry) => entry.id === id)
+    if (!item || !days.value[day]?.tasks.some((task) => task.id === id)) {
+      return Promise.reject(new Error('这条任务已不在今日计划中'))
     }
+    const { startTime, endTime } = range ?? item
+    const timeOverridden = startTime !== item.startTime || endTime !== item.endTime
+    // Keep pending review/check-in writes queued: they may contain newer edits
+    // than the snapshot sent by an earlier request.
+    return saveDay(day, { id, startTime, endTime, timeOverridden })
   }
 
   function touch(day: string, immediate = false) {
@@ -154,8 +185,9 @@ export const useDataStore = defineStore('data', () => {
         const old = previous.get(item.id)
         return {
           id: item.id,
-          startTime: item.startTime,
-          endTime: item.endTime,
+          startTime: old?.timeOverridden ? old.startTime : item.startTime,
+          endTime: old?.timeOverridden ? old.endTime : item.endTime,
+          timeOverridden: old?.timeOverridden,
           title: item.title,
           subject: item.subject,
           note: old?.note ?? item.note ?? '',
@@ -259,6 +291,7 @@ export const useDataStore = defineStore('data', () => {
     addFocus,
     setCheckedIn,
     updateReview,
+    setTodayTaskTime,
     savePlan,
     recalc,
     reconcileToday,

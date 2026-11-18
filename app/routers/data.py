@@ -1,10 +1,10 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..db import backup_snapshot, ensure_plan_categories, get_db, now_iso
+from ..db import backup_snapshot, ensure_plan_categories, get_db, now_iso, today_cn
 from ..deps import current_account
 from ..schemas import DayIn, PlanIn
 from ..serialize import day_row_to_log, plan_row_to_item
@@ -63,6 +63,36 @@ def plan_template(account=Depends(current_account)):
     return {"items": template_items()}
 
 
+def learning_stats(conn, owner_id: int) -> dict:
+    rows = conn.execute(
+        "SELECT day, completion, checked_in, focus_sec FROM day_logs WHERE owner_id=?",
+        (owner_id,),
+    ).fetchall()
+    today = today_cn()
+    today_row = next((row for row in rows if row["day"] == today), None)
+    checked = {row["day"] for row in rows if row["checked_in"]}
+    cursor = datetime.strptime(today, "%Y-%m-%d").date()
+    if today not in checked:
+        cursor -= timedelta(days=1)
+    streak = 0
+    while cursor.isoformat() in checked:
+        streak += 1
+        cursor -= timedelta(days=1)
+    return {
+        "todayCompletion": float(today_row["completion"]) if today_row else 0.0,
+        "todayCheckedIn": bool(today_row["checked_in"]) if today_row else False,
+        "streak": streak,
+        "checkinDays": len(checked),
+        "totalFocusSec": sum(int(row["focus_sec"] or 0) for row in rows),
+    }
+
+
+@router.get("/learning-summary")
+def learning_summary(account=Depends(current_account), conn=Depends(get_db)):
+    stats = learning_stats(conn, account["id"])
+    return {key: stats[key] for key in ("streak", "checkinDays", "totalFocusSec")}
+
+
 @router.put("/plan")
 def save_plan(
     payload: PlanIn, account=Depends(current_account), conn=Depends(get_db)
@@ -116,11 +146,16 @@ def save_day(
 
     tasks = []
     for task in payload.tasks:
+        if task.timeOverridden and not all(
+            TIME_PATTERN.fullmatch(value) for value in (task.startTime, task.endTime)
+        ):
+            raise HTTPException(status_code=400, detail="时间格式应为 HH:mm")
         tasks.append(
             {
                 "id": task.id,
                 "startTime": task.startTime,
                 "endTime": task.endTime,
+                **({"timeOverridden": True} if task.timeOverridden else {}),
                 "title": task.title,
                 "subject": task.subject or "其他",
                 "note": task.note or "",
