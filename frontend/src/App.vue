@@ -6,15 +6,11 @@ import { useDataStore } from './stores/data'
 import { useThemeStore } from './stores/theme'
 import { useTimerStore } from './stores/timer'
 import { useToastStore } from './stores/toast'
-import { useUiStore, type ViewName } from './stores/ui'
+import { useUiStore } from './stores/ui'
+import { loginDestination, type ViewName } from './router'
 import { todayStr } from './utils'
 
-import Login from './views/Login.vue'
-import Today from './views/Today.vue'
-import Plan from './views/Plan.vue'
-import Stats from './views/Stats.vue'
-import Admin from './views/Admin.vue'
-import Settings from './views/Settings.vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import TimerPanel from './components/TimerPanel.vue'
 import ToastStack from './components/ToastStack.vue'
 import PasswordModal from './components/PasswordModal.vue'
@@ -27,6 +23,8 @@ const timer = useTimerStore()
 const toast = useToastStore()
 const ui = useUiStore()
 const theme = useThemeStore()
+const route = useRoute()
+const router = useRouter()
 
 const tabs = computed<Array<{ id: ViewName; label: string; icon: string }>>(() => {
   const list: Array<{ id: ViewName; label: string; icon: string }> = [
@@ -41,7 +39,7 @@ const tabs = computed<Array<{ id: ViewName; label: string; icon: string }>>(() =
 
 const initial = computed(() => (auth.user?.displayName || auth.user?.username || '?').slice(0, 1))
 const showForcePassword = computed(() => Boolean(auth.user?.mustChangePassword))
-const activeLabel = computed(() => tabs.value.find((tab) => tab.id === ui.view)?.label || '今日')
+const activeLabel = computed(() => tabs.value.find((tab) => tab.id === route.name)?.label || '今日')
 
 let tickHandle = 0
 
@@ -55,16 +53,8 @@ timer.onFinish((seconds, taskId) => {
   data.addFocus(todayStr(), taskId, seconds)
 })
 
-onMounted(async () => {
+onMounted(() => {
   theme.apply()
-  await auth.restore()
-  if (auth.isLoggedIn) {
-    try {
-      await data.load()
-    } catch (err: any) {
-      toast.push(err?.message || '数据加载失败', 'err')
-    }
-  }
   tickHandle = window.setInterval(() => timer.tick(), 500)
 })
 
@@ -79,7 +69,7 @@ watch(
   () => {
     timer.reset(false)
     data.reset()
-    ui.go('today')
+    ui.focusDate = null
   }
 )
 
@@ -87,9 +77,10 @@ watch(
   () => auth.isLoggedIn,
   async (loggedIn) => {
     if (!loggedIn) {
-      ui.go('today')
+      if (route.name !== 'login') void router.replace({ name: 'login' })
       return
     }
+    if (route.name === 'login') void router.replace(loginDestination(route, auth.isSuperadmin))
     if (!data.loaded) {
       try {
         await data.load()
@@ -97,36 +88,36 @@ watch(
         toast.push(err?.message || '数据加载失败', 'err')
       }
     }
-  }
+  },
+  { immediate: true }
 )
 </script>
 
 <template>
   <div class="app">
-    <template v-if="!auth.isLoggedIn">
-      <Login />
+    <template v-if="route.name === 'login'">
+      <RouterView />
     </template>
 
-    <template v-else>
+    <template v-else-if="auth.isLoggedIn">
       <div class="app-shell">
         <aside class="sidebar">
-          <button class="brand brand-link" @click="ui.go('today')">
+          <RouterLink class="brand brand-link" :to="{ name: 'today' }">
             <span class="brand-icon"><Icon name="today" :size="20" /></span>
             <span class="brand-copy">学习打卡<span class="brand-en">DAILY STUDY JOURNAL</span></span>
-          </button>
+          </RouterLink>
           <div class="nav-label">学习空间</div>
           <nav class="side-nav" aria-label="主导航">
-            <button
+            <RouterLink
               v-for="tab in tabs"
               :key="tab.id"
-              :class="{ selected: ui.view === tab.id }"
-              :aria-current="ui.view === tab.id ? 'page' : undefined"
-              @click="ui.go(tab.id)"
+              :class="{ selected: route.name === tab.id }"
+              :to="{ name: tab.id }"
             >
               <Icon :name="tab.icon" :size="18" />
               <span>{{ tab.label }}</span>
-              <span v-if="ui.view === tab.id" class="nav-indicator" />
-            </button>
+              <span v-if="route.name === tab.id" class="nav-indicator" />
+            </RouterLink>
           </nav>
           <div class="sidebar-footer">
             <div class="local-box"><span class="dot" /> 每天进步一点</div>
@@ -155,26 +146,21 @@ watch(
               <el-skeleton :rows="5" animated />
             </div>
             <template v-else>
-              <Today v-if="ui.view === 'today'" />
-              <Plan v-else-if="ui.view === 'plan'" />
-              <Stats v-else-if="ui.view === 'stats'" />
-              <Admin v-else-if="ui.view === 'admin'" />
-              <Settings v-else />
+              <RouterView />
             </template>
           </section>
         </main>
 
         <nav class="tabbar" aria-label="手机导航">
-          <button
+          <RouterLink
             v-for="tab in tabs"
             :key="tab.id"
-            :class="{ active: ui.view === tab.id }"
-            :aria-current="ui.view === tab.id ? 'page' : undefined"
-            @click="ui.go(tab.id)"
+            :class="{ active: route.name === tab.id }"
+            :to="{ name: tab.id }"
           >
             <Icon :name="tab.icon" :size="19" />
             <span>{{ tab.label }}</span>
-          </button>
+          </RouterLink>
         </nav>
       </div>
 

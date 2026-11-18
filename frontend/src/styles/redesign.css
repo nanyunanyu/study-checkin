@@ -77,6 +77,8 @@ textarea:focus-visible,
 }
 
 .brand-link {
+  color: inherit;
+  text-decoration: none;
   width: 100%;
   margin: 0 0 38px;
   padding: 0 5px;
@@ -130,7 +132,8 @@ textarea:focus-visible,
   gap: 5px;
 }
 
-.side-nav button {
+.side-nav a {
+  text-decoration: none;
   position: relative;
   display: flex;
   align-items: center;
@@ -145,18 +148,18 @@ textarea:focus-visible,
   transition: background 0.16s ease, color 0.16s ease;
 }
 
-.side-nav button:hover {
+.side-nav a:hover {
   color: var(--accent-text);
   background: var(--surface-2);
 }
 
-.side-nav button.selected {
+.side-nav a.selected {
   color: var(--accent-text);
   background: linear-gradient(90deg, var(--accent-soft), color-mix(in srgb, var(--accent-soft) 35%, transparent));
   font-weight: 600;
 }
 
-.side-nav button.selected > .el-icon {
+.side-nav a.selected > .el-icon {
   color: var(--accent);
 }
 
@@ -682,7 +685,7 @@ textarea:focus-visible,
 
   .brand-copy,
   .nav-label,
-  .side-nav button > span:not(.nav-indicator),
+  .side-nav a > span:not(.nav-indicator),
   .nav-indicator,
   .local-box,
   .sidebar-user-copy {
@@ -693,7 +696,7 @@ textarea:focus-visible,
     width: 100%;
   }
 
-  .side-nav button {
+  .side-nav a {
     justify-content: center;
     width: 54px;
     padding: 0;
@@ -755,7 +758,8 @@ textarea:focus-visible,
     backdrop-filter: blur(16px);
   }
 
-  .tabbar button {
+  .tabbar a {
+    text-decoration: none;
     display: flex;
     min-width: 0;
     min-height: 50px;
@@ -769,7 +773,7 @@ textarea:focus-visible,
     font-size: 10px;
   }
 
-  .tabbar button.active {
+  .tabbar a.active {
     color: var(--accent-text);
     background: var(--accent-soft);
     font-weight: 650;
@@ -1280,7 +1284,7 @@ textarea:focus-visible,
 }
 
 .plan-row {
-  grid-template-columns: minmax(174px, 190px) minmax(140px, 1fr) minmax(106px, 126px) auto;
+  grid-template-columns: minmax(200px, 216px) minmax(120px, 1fr) minmax(106px, 126px) auto;
   gap: 8px;
 }
 
@@ -1305,6 +1309,29 @@ textarea:focus-visible,
 .plan-category-select {
   width: 100%;
   min-width: 0;
+}
+
+.plan-native-time,
+.plan-native-select {
+  box-sizing: border-box;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+}
+
+.plan-native-time {
+  width: 94px;
+  min-width: 0;
+  padding: 0 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-native-select {
+  padding: 0 8px;
 }
 
 .plan-category-select .el-select__wrapper,
@@ -1427,11 +1454,6 @@ textarea:focus-visible,
     grid-column: 1 / -1;
   }
 
-  .plan-time .el-date-editor {
-    width: 82px;
-    flex: none;
-  }
-
   .plan-row > .el-input,
   .plan-row > .plan-category-select {
     min-width: 0;
@@ -1535,7 +1557,7 @@ textarea:focus-visible,
     min-height: 40px;
   }
 
-  .plan-time .el-date-editor {
+  .plan-time .plan-native-time {
     height: 40px;
     min-height: 40px;
   }

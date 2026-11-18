@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { guardRoutes, router } from './router'
+import { useAuthStore } from './stores/auth'
 import {
   ElAlert,
   ElAvatar,
@@ -37,7 +39,10 @@ import './styles/themes.css'
 import './styles/base.css'
 import './styles/redesign.css'
 
-const app = createApp(App).use(createPinia())
+const pinia = createPinia()
+const app = createApp(App).use(pinia)
+guardRoutes(useAuthStore(pinia))
+app.use(router)
 const components = [
   ElAlert, ElAvatar, ElButton, ElButtonGroup, ElCard, ElCheckbox, ElDatePicker,
   ElDialog, ElDivider, ElEmpty, ElForm, ElFormItem, ElIcon, ElInput,
@@ -48,4 +53,4 @@ const components = [
 components.forEach((component) => app.component(component.name!, component))
 app.directive('loading', ElLoadingDirective)
 provideGlobalConfig({ locale: zhCn }, app, true)
-app.mount('#app')
+void router.isReady().then(() => app.mount('#app'))

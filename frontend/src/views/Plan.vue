@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api'
 import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
@@ -19,6 +19,7 @@ const expandedIds = ref(new Set<string>())
 const drafts = ref<PlanItem[]>([])
 const presets = ref<string[]>([])
 const customCategories = ref<Array<{ id: number; name: string }>>([])
+const categoryNames = computed(() => new Set([...presets.value, ...customCategories.value.map(({ name }) => name)]))
 const categoriesOpen = ref(false)
 const newCategoryName = ref('')
 const categoryBusy = ref(false)
@@ -241,16 +242,20 @@ async function restoreDefault() {
       <article v-for="(item, index) in items" :key="item.id" class="plan-item">
         <div class="plan-row">
           <div class="plan-time">
-            <el-time-picker v-model="item.startTime" class="time-picker" format="HH:mm" value-format="HH:mm" placeholder="开始" :clearable="false" @change="mark" />
+            <input v-model="item.startTime" class="plan-native-time" type="time" aria-label="开始时间" @input="mark" />
             <span class="hint">至</span>
-            <el-time-picker v-model="item.endTime" class="time-picker" format="HH:mm" value-format="HH:mm" placeholder="结束" :clearable="false" @change="mark" />
+            <input v-model="item.endTime" class="plan-native-time" type="time" aria-label="结束时间" @input="mark" />
           </div>
           <el-input v-model="item.title" placeholder="任务内容" @input="mark" />
-          <el-select v-model="item.subject" class="plan-category-select" aria-label="计划类别" @change="mark">
-            <el-option-group v-for="group in [{ label: '预设分类', options: presets }, { label: '自定义分类', options: customCategories.map((category) => category.name) }]" :key="group.label" :label="group.label">
-              <el-option v-for="category in group.options" :key="category" :label="category" :value="category" />
-            </el-option-group>
-          </el-select>
+          <select v-model="item.subject" class="plan-category-select plan-native-select" aria-label="计划类别" @change="mark">
+            <option v-if="!categoryNames.has(item.subject)" :value="item.subject">{{ item.subject }}</option>
+            <optgroup v-if="presets.length" label="预设分类">
+              <option v-for="category in presets" :key="category" :value="category">{{ category }}</option>
+            </optgroup>
+            <optgroup v-if="customCategories.length" label="自定义分类">
+              <option v-for="category in customCategories" :key="category.id" :value="category.name">{{ category.name }}</option>
+            </optgroup>
+          </select>
           <div class="plan-actions">
             <el-button circle text :aria-label="expandedIds.has(item.id) ? '收起详情' : '展开详情'" :aria-expanded="expandedIds.has(item.id)" title="详情" @click="toggleExpanded(item.id)">
               <Icon :name="expandedIds.has(item.id) ? 'up' : 'down'" :size="14" />
