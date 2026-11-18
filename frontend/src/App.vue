@@ -16,6 +16,7 @@ import ToastStack from './components/ToastStack.vue'
 import PasswordModal from './components/PasswordModal.vue'
 import Icon from './components/Icon.vue'
 import ThemePicker from './components/ThemePicker.vue'
+import PageScrollActions from './components/PageScrollActions.vue'
 
 const auth = useAuthStore()
 const data = useDataStore()
@@ -147,6 +148,7 @@ watch(
             </div>
             <template v-else>
               <RouterView />
+              <PageScrollActions v-if="route.name === 'today' || route.name === 'plan'" />
             </template>
           </section>
         </main>

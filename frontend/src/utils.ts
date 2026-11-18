@@ -91,13 +91,16 @@ export function emptyReview(): Review {
 export function normalizeReview(input: any): Review {
   const base = emptyReview()
   if (!input || typeof input !== 'object') return base
-  const best = Array.isArray(input.best) ? input.best.slice(0, 2) : []
+  const best = Array.isArray(input.best)
+    ? input.best.map((entry: unknown) => (typeof entry === 'string' ? entry : ''))
+    : []
+  while (best.length < 2) best.push('')
   const priorities = Array.isArray(input.priorities)
     ? input.priorities.map((priority: any) => (typeof priority === 'string' ? priority : ''))
     : []
   while (priorities.length < 3) priorities.push('')
   return {
-    best: [best[0] || '', best[1] || ''],
+    best,
     problems: Array.isArray(input.problems) ? input.problems.filter((p: any) => typeof p === 'string') : [],
     other: typeof input.other === 'string' ? input.other : '',
     priorities,

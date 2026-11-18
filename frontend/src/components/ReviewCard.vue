@@ -1,29 +1,36 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import type { Review } from '../types'
 import { PROBLEM_OPTIONS } from '../utils'
 import Icon from './Icon.vue'
 
 const props = defineProps<{ review: Review; readonly?: boolean }>()
 const emit = defineEmits<{ (event: 'update', patch: Partial<Review>): void }>()
+const bestList = ref<HTMLElement>()
+const priorityList = ref<HTMLElement>()
+const visibleBestCount = computed(() => Math.max(2, props.review.best?.length || 0))
 const visiblePriorityCount = computed(() => Math.max(3, props.review.priorities?.length || 0))
 const customProblems = computed(() => (props.review.problems || []).filter((problem) => !PROBLEM_OPTIONS.includes(problem)))
 
-function setBest(index: number, value: string) {
-  const best = [...(props.review.best || ['', ''])]
-  best[index] = value
-  emit('update', { best })
+type ReviewList = 'best' | 'priorities'
+
+function setEntry(field: ReviewList, index: number, value: string) {
+  const entries = [...(props.review[field] || [])]
+  while (entries.length <= index) entries.push('')
+  entries[index] = value
+  emit('update', { [field]: entries })
 }
 
-function setPriority(index: number, value: string) {
-  const priorities = [...(props.review.priorities || [])]
-  while (priorities.length <= index) priorities.push('')
-  priorities[index] = value
-  emit('update', { priorities })
+async function addEntry(field: ReviewList) {
+  const index = field === 'best' ? visibleBestCount.value : visiblePriorityCount.value
+  setEntry(field, index, '')
+  await nextTick()
+  const list = field === 'best' ? bestList.value : priorityList.value
+  list?.querySelectorAll('input')[index]?.focus()
 }
 
-function addPriority() {
-  emit('update', { priorities: [...(props.review.priorities || ['', '', '']), ''] })
+function removeBest(index: number) {
+  emit('update', { best: props.review.best.filter((_, position) => index !== position) })
 }
 
 function removePriority(index: number) {
@@ -58,19 +65,20 @@ function removeCustomProblem(problem: string) {
       <div class="stack" style="gap: 14px">
         <div>
           <div class="hint" style="margin-bottom: 6px">最有效的学习内容</div>
-          <div class="grid-2">
-            <el-input
-              :readonly="readonly"
-              :model-value="review.best?.[0] || ''"
-              placeholder="① 例如：晨背 40 分钟记了 60 个单词"
-              @input="setBest(0, $event)"
-            />
-            <el-input
-              :readonly="readonly"
-              :model-value="review.best?.[1] || ''"
-              placeholder="② 可留空"
-              @input="setBest(1, $event)"
-            />
+          <div ref="bestList" class="grid-2">
+            <div v-for="index in visibleBestCount" :key="index" class="best-entry">
+              <el-input
+                :readonly="readonly"
+                :model-value="review.best?.[index - 1] || ''"
+                :aria-label="`最有效的学习内容 ${index}`"
+                :placeholder="index === 1 ? '例如：晨背 40 分钟记了 60 个单词' : `学习内容 ${index}（可留空）`"
+                @input="setEntry('best', index - 1, $event)"
+              />
+              <el-button v-if="!readonly && index > 2" text circle type="danger" :aria-label="`删除第 ${index} 条学习内容`" @click="removeBest(index - 1)"><Icon name="trash" :size="14" /></el-button>
+            </div>
+          </div>
+          <div v-if="!readonly" class="review-actions">
+            <el-button class="review-add" text type="primary" aria-label="新增学习内容" title="新增学习内容" @click="addEntry('best')"><Icon name="plus" :size="16" /></el-button>
           </div>
         </div>
 
@@ -109,20 +117,20 @@ function removeCustomProblem(problem: string) {
 
         <div>
           <div class="hint" style="margin-bottom: 6px">明日优先解决</div>
-          <div class="stack priority-list" style="gap: 8px">
+          <div ref="priorityList" class="stack priority-list" style="gap: 8px">
             <div v-for="index in visiblePriorityCount" :key="index" class="priority-row">
               <span class="priority-index">{{ index }}.</span>
               <el-input
                 :readonly="readonly"
                 :model-value="review.priorities?.[index - 1] || ''"
                 :placeholder="`优先解决事项 ${index}`"
-                @input="setPriority(index - 1, $event)"
+                @input="setEntry('priorities', index - 1, $event)"
               />
               <el-button v-if="!readonly && visiblePriorityCount > 3" class="priority-remove" text circle type="danger" :aria-label="`删除第 ${index} 项`" @click="removePriority(index - 1)"><Icon name="trash" :size="14" /></el-button>
             </div>
           </div>
-          <div v-if="!readonly" class="priority-actions">
-            <el-button class="add-priority-btn" size="small" type="primary" text @click="addPriority"><Icon name="plus" :size="13" />新增优先事项</el-button>
+          <div v-if="!readonly" class="review-actions">
+            <el-button class="review-add" text type="primary" aria-label="新增优先事项" title="新增优先事项" @click="addEntry('priorities')"><Icon name="plus" :size="16" /></el-button>
           </div>
         </div>
 
@@ -204,6 +212,8 @@ function removeCustomProblem(problem: string) {
 }
 
 .priority-row:not(:has(.priority-remove)) { grid-template-columns: 20px minmax(0, 1fr); }
-.priority-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
-.add-priority-btn { min-height: 30px; padding-inline: 7px; }
+.best-entry { display: flex; align-items: center; min-width: 0; gap: 6px; }
+.best-entry > .el-input { min-width: 0; }
+.review-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.review-add.el-button { width: 36px; height: 36px; padding: 0; }
 </style>

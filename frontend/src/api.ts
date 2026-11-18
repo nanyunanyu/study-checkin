@@ -1,4 +1,4 @@
-import type { DayLog, LearningSummary, OverviewResponse, PlanCategoriesResponse, PlanCategory, PlanItem, StateResponse, User } from './types'
+import type { DayLog, LearningSummary, OverviewResponse, PlanCategoriesResponse, PlanCategory, PlanItem, PlanVersion, StateResponse, User } from './types'
 
 const TOKEN_KEY = 'study.token'
 const USER_KEY = 'study.user'
@@ -151,6 +151,10 @@ export const api = {
     request<{ ok: boolean }>(`/api/categories/${id}`, { method: 'DELETE' }),
 
   planTemplate: () => request<{ items: PlanItem[] }>('/api/plan/template'),
+  planHistory: (before?: number) => request<{ versions: PlanVersion[]; nextBefore: number | null }>(
+    before == null ? '/api/plan/history' : `/api/plan/history?before=${before}`
+  ),
+  planVersion: (id: number) => request<{ items: PlanItem[] }>(`/api/plan/history/${id}`),
 
   savePlan: (items: PlanItem[]) =>
     request<{ plan: PlanItem[] }>('/api/plan', {

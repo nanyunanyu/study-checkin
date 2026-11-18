@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS plan_items (
   PRIMARY KEY(owner_id, id)
 );
 
+CREATE TABLE IF NOT EXISTS plan_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL,
+  replaced_at TEXT NOT NULL,
+  item_count INTEGER NOT NULL,
+  items TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_plan_history_owner_id ON plan_history(owner_id, id DESC);
+
 CREATE TABLE IF NOT EXISTS plan_categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id INTEGER NOT NULL,

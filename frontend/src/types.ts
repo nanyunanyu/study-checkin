@@ -27,6 +27,12 @@ export interface PlanItem {
   active: boolean
 }
 
+export interface PlanVersion {
+  id: number
+  replacedAt: string
+  itemCount: number
+}
+
 export interface PlanCategory {
   id: number
   name: string

@@ -8,7 +8,8 @@ from ..schemas import ResetPasswordIn, UserCreateIn, UserPatchIn
 from ..security import hash_password
 from ..seed import copy_default_plan
 from ..serialize import account_to_user
-from .data import learning_stats, load_days, load_plan
+from ..plan import load_plan
+from .data import learning_stats, load_days
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -161,6 +162,7 @@ def delete_user(
 
     conn.execute("DELETE FROM day_logs WHERE owner_id=?", (account_id,))
     conn.execute("DELETE FROM plan_items WHERE owner_id=?", (account_id,))
+    conn.execute("DELETE FROM plan_history WHERE owner_id=?", (account_id,))
     conn.execute("DELETE FROM plan_categories WHERE owner_id=?", (account_id,))
     conn.execute("DELETE FROM sessions WHERE account_id=?", (account_id,))
     conn.execute("DELETE FROM accounts WHERE id=?", (account_id,))

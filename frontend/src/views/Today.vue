@@ -231,8 +231,8 @@ function startFocus(task: DayTask) {
 .today-progress small { color: var(--text-3); font-size: 11px; }
 .today-completion { gap: 6px; }
 .today-checkin { height: 34px; flex: none; padding-inline: 9px; }
-.task-time-button { min-height: 32px; padding: 0 5px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-2); background: var(--surface-2); text-align: center; }
-.task-time-button:hover, .task-time-button.time-overridden { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+.task-time-button { min-height: 32px; padding: 0 5px; border: 0; border-radius: 6px; color: var(--text-2); background: transparent; text-align: center; }
+.task-time-button:hover, .task-time-button.time-overridden { color: var(--accent-text); background: var(--accent-soft); }
 @media (max-width: 560px) {
   .today-overview { padding: 10px 11px; gap: 8px; }
   .today-date-copy h1 { font-size: 16px; }

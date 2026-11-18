@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import get_db, now_iso
 from ..deps import current_account
+from ..plan import archive_plan, load_plan
 from ..schemas import CategoryIn, CategoryNamesIn
 from ..seed import SUBJECTS
 
@@ -80,6 +81,7 @@ def rename_category(
     conn=Depends(get_db),
 ):
     owner_id = account["id"]
+    conn.execute("BEGIN IMMEDIATE")
     row = conn.execute(
         "SELECT id, name FROM plan_categories WHERE id=? AND owner_id=?",
         (category_id, owner_id),
@@ -96,11 +98,14 @@ def rename_category(
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail="该自定义分类已存在")
 
-    # Current plan entries follow the rename; historical day snapshots keep their original labels.
+    # Current plan entries follow the rename; historical snapshots keep their original labels.
+    previous = load_plan(conn, owner_id)
     conn.execute(
         "UPDATE plan_items SET subject=? WHERE owner_id=? AND subject=? COLLATE NOCASE",
         (name, owner_id, old_name),
     )
+    if load_plan(conn, owner_id) != previous:
+        archive_plan(conn, owner_id, previous)
     conn.commit()
     return {"id": category_id, "name": name}
 

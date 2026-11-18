@@ -5,7 +5,7 @@ import uuid
 from .db import now_iso
 from .security import hash_password
 
-TABLE_EXPORT = ["accounts", "plan_items", "plan_categories", "day_logs"]
+TABLE_EXPORT = ["accounts", "plan_items", "plan_categories", "plan_history", "day_logs"]
 
 SUBJECTS = ["英语", "语文", "数学", "专业课", "网课", "练习", "背诵", "复盘", "休息", "其他"]
 

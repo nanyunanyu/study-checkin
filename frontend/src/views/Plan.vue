@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElDropdown, ElDropdownItem, ElDropdownMenu, type ButtonInstance, type DropdownInstance } from 'element-plus'
+import { MoreFilled } from '@element-plus/icons-vue'
 import { api } from '../api'
 import { useDataStore } from '../stores/data'
 import { useToastStore } from '../stores/toast'
 import { defaultFocusMinutes, todayStr, uuid } from '../utils'
 import type { PlanItem } from '../types'
 import Icon from '../components/Icon.vue'
+import PlanHistoryDialog from '../components/PlanHistoryDialog.vue'
 import TimeRangePicker from '../components/TimeRangePicker.vue'
 
 const data = useDataStore()
@@ -22,6 +25,9 @@ const presets = ref<string[]>([])
 const customCategories = ref<Array<{ id: number; name: string }>>([])
 const categoryNames = computed(() => new Set([...presets.value, ...customCategories.value.map(({ name }) => name)]))
 const categoriesOpen = ref(false)
+const historyOpen = ref(false)
+const planMenu = ref<DropdownInstance>()
+const planMenuTrigger = ref<ButtonInstance>()
 const newCategoryName = ref('')
 const categoryBusy = ref(false)
 const editingCategoryId = ref<number | null>(null)
@@ -37,6 +43,25 @@ let frame = 0
 function timeLabel(item: PlanItem) {
   if (!item.startTime && !item.endTime) return '设置时间'
   return `${item.startTime || '—'} 至 ${item.endTime || '—'}`
+}
+
+function handlePlanAction(action: 'history' | 'categories' | 'restore') {
+  if (action === 'history') historyOpen.value = true
+  if (action === 'categories') categoriesOpen.value = true
+  if (action === 'restore') restoreOpen.value = true
+}
+
+function useHistoryPlan(versionItems: PlanItem[]) {
+  items.value = versionItems.map((item, index) => ({ ...item, sortOrder: index }))
+  expandedIds.value = new Set()
+  mark()
+  historyOpen.value = false
+  toast.push('已载入历史计划草稿', 'info')
+}
+
+function closePlanMenu() {
+  planMenu.value?.handleClose()
+  planMenuTrigger.value?.ref?.focus({ preventScroll: true })
 }
 
 function applyTime(range: Pick<PlanItem, 'startTime' | 'endTime'>) {
@@ -312,6 +337,7 @@ async function save() {
     await data.savePlan(items.value.map((item, index) => ({ ...item, sortOrder: index })))
     data.dropDayIfEmpty(todayStr())
     dirty.value = false
+    void loadCategories().catch(() => undefined)
     toast.push('计划已保存，从今天起生效', 'ok')
   } catch (err: any) {
     toast.push(err?.message || '保存失败', 'err')
@@ -340,22 +366,33 @@ async function restoreDefault() {
 <template>
   <div class="stack">
     <section class="card card-pad">
-      <div class="card-head plan-head">
-        <div class="card-title">计划表</div>
-        <span class="hint">{{ items.length }} 个时间段</span>
-        <div class="spacer" />
-        <div class="plan-toolbar">
-          <span v-if="dirty" class="tag">未保存</span>
-          <el-button size="small" @click="categoriesOpen = true">管理分类</el-button>
-          <el-button size="small" @click="restoreOpen = true">恢复默认</el-button>
-          <el-button size="small" @click="openAdd"><Icon name="plus" :size="14" />新增计划表</el-button>
-          <el-button size="small" type="primary" :loading="saving" :disabled="!dirty" @click="save">
-            {{ saving ? '保存中…' : '保存' }}
+      <div class="plan-head">
+        <h1 class="card-title">计划表</h1>
+        <div class="plan-meta hint">
+          <span>{{ items.length }} 个时间段</span>
+          <span v-if="dirty" class="plan-dirty" role="status">未保存</span>
+        </div>
+        <div class="plan-toolbar" role="group" aria-label="计划表操作">
+          <el-button size="small" plain :disabled="saving" @click="openAdd"><Icon name="plus" :size="14" />新增</el-button>
+          <el-button class="plan-save" size="small" :type="dirty ? 'primary' : 'default'" :loading="saving" :disabled="!dirty" @click="save">
+            保存
           </el-button>
+          <ElDropdown ref="planMenu" trigger="click" placement="bottom-end" :disabled="saving" @command="handlePlanAction">
+            <el-button ref="planMenuTrigger" class="plan-more" size="small" aria-label="更多计划操作" title="更多计划操作" :disabled="saving">
+              <el-icon :size="16" aria-hidden="true"><MoreFilled /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <ElDropdownMenu @keydown.esc.capture.stop.prevent="closePlanMenu">
+                <ElDropdownItem command="history">历史计划</ElDropdownItem>
+                <ElDropdownItem command="categories">管理分类</ElDropdownItem>
+                <ElDropdownItem command="restore" divided>恢复默认</ElDropdownItem>
+              </ElDropdownMenu>
+            </template>
+          </ElDropdown>
         </div>
       </div>
 
-      <div v-if="!items.length" class="empty">还没有任何时间段，点「新增计划表」开始</div>
+      <div v-if="!items.length" class="empty">还没有任何时间段，点「新增」开始</div>
 
       <span class="sort-announcement" aria-live="polite">{{ sortAnnouncement }}</span>
       <div ref="list" class="plan-sort-list">
@@ -451,6 +488,8 @@ async function restoreDefault() {
         </template>
     </el-dialog>
 
+    <PlanHistoryDialog v-if="historyOpen" :dirty="dirty" @close="historyOpen = false" @select="useHistoryPlan" />
+
     <el-dialog v-model="categoriesOpen" title="管理计划分类" width="480px" class="category-dialog" :close-on-click-modal="false">
       <p class="hint category-help">自定义分类仅当前账号可见。重命名会同步当前计划，历史记录保留原名称。</p>
       <div class="category-create-row">
@@ -499,6 +538,25 @@ async function restoreDefault() {
 </template>
 
 <style scoped>
+.plan-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title tools' 'meta tools';
+  align-items: center;
+  gap: 2px 8px;
+  margin-bottom: 10px;
+}
+.plan-head .card-title { grid-area: title; margin: 0; line-height: 1.4; }
+.plan-meta { grid-area: meta; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.plan-dirty { display: inline-flex; align-items: center; gap: 4px; }
+.plan-dirty::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--el-color-warning); }
+.plan-toolbar { grid-area: tools; display: flex; align-items: center; gap: 6px; }
+.plan-toolbar .el-button { min-height: 36px; margin: 0; border-radius: 8px; padding-inline: 9px; }
+.plan-toolbar .plan-save { width: 60px; padding-inline: 4px; }
+.plan-toolbar .plan-more { width: 36px; padding: 0; }
+@media (max-width: 420px) {
+  .plan-head { grid-template-areas: 'title tools' 'meta meta'; }
+}
 .plan-item { position: relative; padding-left: 33px; }
 .plan-item.plan-dragging { opacity: .55; }
 .plan-drop-before::before, .plan-drop-after::after { content: ''; position: absolute; z-index: 1; left: 7px; right: 5px; height: 2px; border-radius: 2px; background: var(--accent); }

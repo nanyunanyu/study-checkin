@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import backup_snapshot, ensure_plan_categories, get_db, now_iso, today_cn
 from ..deps import current_account
+from ..plan import archive_plan, load_plan
 from ..schemas import DayIn, PlanIn
-from ..serialize import day_row_to_log, plan_row_to_item
+from ..serialize import day_row_to_log
 
 router = APIRouter(prefix="/api", tags=["data"])
 
@@ -23,13 +24,6 @@ def _check_day(day: str) -> str:
     except ValueError:
         raise HTTPException(status_code=400, detail="日期不合法")
     return day
-
-
-def load_plan(conn, owner_id: int) -> list[dict]:
-    rows = conn.execute(
-        "SELECT * FROM plan_items WHERE owner_id=? ORDER BY sort_order ASC", (owner_id,)
-    ).fetchall()
-    return [plan_row_to_item(row) for row in rows]
 
 
 def load_days(conn, owner_id: int, limit: int = 500) -> list[dict]:
@@ -61,6 +55,34 @@ def plan_template(account=Depends(current_account)):
     from ..seed import template_items
 
     return {"items": template_items()}
+
+
+@router.get("/plan/history")
+def plan_history(before: int | None = None, account=Depends(current_account), conn=Depends(get_db)):
+    limit = 30
+    owner_id = account["id"]
+    rows = conn.execute(
+        "SELECT id, replaced_at, item_count FROM plan_history WHERE owner_id=?"
+        " AND (? IS NULL OR id < ?) ORDER BY id DESC LIMIT ?",
+        (owner_id, before, before, limit + 1),
+    ).fetchall()
+    return {
+        "versions": [
+            {"id": row["id"], "replacedAt": row["replaced_at"], "itemCount": row["item_count"]}
+            for row in rows[:limit]
+        ],
+        "nextBefore": rows[limit - 1]["id"] if len(rows) > limit else None,
+    }
+
+
+@router.get("/plan/history/{version_id}")
+def plan_version(version_id: int, account=Depends(current_account), conn=Depends(get_db)):
+    row = conn.execute(
+        "SELECT items FROM plan_history WHERE id=? AND owner_id=?", (version_id, account["id"])
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="历史计划不存在")
+    return {"items": json.loads(row["items"])}
 
 
 def learning_stats(conn, owner_id: int) -> dict:
@@ -111,6 +133,8 @@ def save_plan(
             raise HTTPException(status_code=400, detail="计划条目 id 重复")
         seen.add(item.id)
 
+    conn.execute("BEGIN IMMEDIATE")
+    previous = load_plan(conn, owner_id)
     ensure_plan_categories(conn, owner_id, (item.subject for item in payload.items))
 
     conn.execute("DELETE FROM plan_items WHERE owner_id=?", (owner_id,))
@@ -133,8 +157,11 @@ def save_plan(
             for index, item in enumerate(payload.items)
         ],
     )
+    saved = load_plan(conn, owner_id)
+    if saved != previous:
+        archive_plan(conn, owner_id, previous)
     conn.commit()
-    return {"plan": load_plan(conn, owner_id)}
+    return {"plan": saved}
 
 
 @router.put("/day/{day}")
