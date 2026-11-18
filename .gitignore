@@ -1,0 +1,23 @@
+# 依赖
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 数据库与快照
+data/
+
+# 本地配置
+.env
+.env.*
+!.env.example
+
+# 构建产物
+/app/webui/
+
+# 编辑器与系统
+.DS_Store
+.idea/
+.vscode/
+*.log
